@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Levacic\Monolog;
 
+use DateTimeImmutable;
 use Levacic\Monolog\ExceptionWithContextProcessor;
 use Monolog\Level;
 use Monolog\LogRecord;
@@ -212,14 +213,14 @@ class ExceptionWithContextProcessorTest extends TestCase
         $exception = new RuntimeException('Just a regular exception.');
 
         $record = new LogRecord(
-            datetime: new \DateTimeImmutable(),
+            datetime: new DateTimeImmutable(),
             channel: 'test',
             level: Level::Error,
             message: 'An error message.',
             context: [
                 'exception' => $exception,
                 'foo' => 'bar',
-            ]
+            ],
         );
 
         $processor = new ExceptionWithContextProcessor();
@@ -229,15 +230,22 @@ class ExceptionWithContextProcessorTest extends TestCase
         $this->assertInstanceOf(LogRecord::class, $processedRecord);
         $this->assertSame('test', $processedRecord->channel);
         $this->assertSame('An error message.', $processedRecord->message);
-        $this->assertSame($exception, $processedRecord->context['exception']);
+        $this->assertSame($exception, $processedRecord->context['exception']) ?? null;
         $this->assertSame('bar', $processedRecord->context['foo']);
         $this->assertArrayHasKey('exception_chain_with_context', $processedRecord->extra);
-        $this->assertSame([
+        $expectedExceptionChainWithContext = [
             [
                 'exception' => 'RuntimeException',
                 'context' => null,
             ],
-        ], $processedRecord->extra['exception_chain_with_context']);
+        ];
+
+        $processedExceptionChainWithContext = $processedRecord->extra['exception_chain_with_context'] ?? null;
+
+        $this->assertSame(
+            $expectedExceptionChainWithContext,
+            $processedExceptionChainWithContext,
+        );
     }
 
     public function testProcessesLogRecordWithExceptionsWithContext(): void
@@ -245,14 +253,14 @@ class ExceptionWithContextProcessorTest extends TestCase
         $exception = new DummyExceptionWithContext('bar');
 
         $record = new LogRecord(
-            datetime: new \DateTimeImmutable(),
+            datetime: new DateTimeImmutable(),
             channel: 'test',
             level: Level::Error,
             message: 'An error message.',
             context: [
                 'exception' => $exception,
                 'baz' => 'qux',
-            ]
+            ],
         );
 
         $processor = new ExceptionWithContextProcessor();
@@ -264,32 +272,39 @@ class ExceptionWithContextProcessorTest extends TestCase
         $this->assertSame('An error message.', $processedRecord->message);
         $this->assertSame($exception, $processedRecord->context['exception']);
         $this->assertSame('qux', $processedRecord->context['baz']);
-        $this->assertSame('bar', $processedRecord->context['foo']); // Added from exception context
+        $this->assertSame('bar', $processedRecord->context['foo']) ?? null;
         $this->assertArrayHasKey('exception_chain_with_context', $processedRecord->extra);
-        $this->assertSame([
+        $expectedExceptionChainWithContext = [
             [
                 'exception' => 'Tests\Levacic\Monolog\DummyExceptionWithContext',
                 'context' => ['foo' => 'bar'],
             ],
-        ], $processedRecord->extra['exception_chain_with_context']);
+        ];
+
+        $processedExceptionChainWithContext = $processedRecord->extra['exception_chain_with_context'] ?? null;
+
+        $this->assertSame(
+            $expectedExceptionChainWithContext,
+            $processedExceptionChainWithContext,
+        );
     }
 
     public function testIgnoresLogRecordWithoutExceptionInContext(): void
     {
-        $originalRecord = new LogRecord(
-            datetime: new \DateTimeImmutable(),
+        $record = new LogRecord(
+            datetime: new DateTimeImmutable(),
             channel: 'test',
             level: Level::Error,
             message: 'An error message.',
             context: [
                 'foo' => 'bar',
-            ]
+            ],
         );
 
         $processor = new ExceptionWithContextProcessor();
 
-        $processedRecord = $processor($originalRecord);
+        $processedRecord = $processor($record);
 
-        $this->assertSame($originalRecord, $processedRecord);
+        $this->assertSame($record, $processedRecord);
     }
 }

@@ -29,16 +29,17 @@ class ExceptionWithContextProcessor implements ProcessorInterface
      * Supports both Monolog 2 (array) and Monolog 3 (LogRecord) formats.
      *
      * @param array|LogRecord $record The log record to process (array for Monolog 2, LogRecord for Monolog 3)
+     *
      * @return array|LogRecord The processed record (same type as input)
      */
     public function __invoke(array|LogRecord $record): array|LogRecord
     {
-        // Handle Monolog 3 (LogRecord) format
+        // Handle Monolog 3 (LogRecord) format.
         if ($record instanceof LogRecord) {
             return $this->processLogRecord($record);
         }
 
-        // Fallback to array processing for Monolog 2 compatibility
+        // Fallback to array processing for Monolog 2 compatibility.
         return $this->processArray($record);
     }
 
@@ -50,10 +51,9 @@ class ExceptionWithContextProcessor implements ProcessorInterface
      */
     private function processLogRecord(LogRecord $record): LogRecord
     {
-        // If the log record context doesn't have
-        // an exception attached, or the exception key is not actually an
-        // exception - there's nothing we can do, so we'll just return the
-        // record as it was.
+        // If the log record context doesn't have an exception attached, or the
+        // exception key is not actually an exception - there's nothing we can
+        // do, so we'll just return the record as it was.
         if (
             !isset($record->context['exception'])
             || !($record->context['exception'] instanceof Throwable)
@@ -64,7 +64,7 @@ class ExceptionWithContextProcessor implements ProcessorInterface
         // Extract the exception into a variable for readability.
         $exception = $record->context['exception'];
 
-        // Create new extra array with exception chain
+        // Create new extra array with exception chain.
         $newExtra = $record->extra;
         $newExtra['exception_chain_with_context'] = $this->getExceptionChainWithContext($exception);
 
@@ -73,10 +73,10 @@ class ExceptionWithContextProcessor implements ProcessorInterface
         // there, so as to enable users to still pass custom data if needed.
         $newContext = $this->mergeContextWithExceptionContext($record->context, $exception);
 
-        // Return a new LogRecord with updated extra and context
+        // Return a new LogRecord with updated context and extra
         return $record->with(
             context: $newContext,
-            extra: $newExtra
+            extra: $newExtra,
         );
     }
 
