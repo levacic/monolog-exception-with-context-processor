@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Levacic\Monolog;
 
 use Levacic\Exceptions\ExceptionWithContext;
+use Monolog\LogRecord;
 use Monolog\Processor\ProcessorInterface;
 use Throwable;
 
@@ -25,11 +26,67 @@ class ExceptionWithContextProcessor implements ProcessorInterface
      * particular exception's context, if that exception carries its own
      * context, or `null`, if it doesn't.
      *
-     * @param array $record The processed record.
+     * Supports both Monolog 2 (array) and Monolog 3 (LogRecord) formats.
      *
+     * @param array|LogRecord $record The log record to process (array for Monolog 2, LogRecord for Monolog 3)
+     *
+     * @return array|LogRecord The processed record (same type as input)
+     */
+    public function __invoke(array|LogRecord $record): array|LogRecord
+    {
+        // Handle Monolog 3 (LogRecord) format.
+        if ($record instanceof LogRecord) {
+            return $this->processLogRecord($record);
+        }
+
+        // Fallback to array processing for Monolog 2 compatibility.
+        return $this->processArray($record);
+    }
+
+    /**
+     * Process Monolog 3 LogRecord object.
+     *
+     * @param LogRecord $record
+     * @return LogRecord
+     */
+    private function processLogRecord(LogRecord $record): LogRecord
+    {
+        // If the log record context doesn't have an exception attached, or the
+        // exception key is not actually an exception - there's nothing we can
+        // do, so we'll just return the record as it was.
+        if (
+            !isset($record->context['exception'])
+            || !($record->context['exception'] instanceof Throwable)
+        ) {
+            return $record;
+        }
+
+        // Extract the exception into a variable for readability.
+        $exception = $record->context['exception'];
+
+        // Create new extra array with exception chain.
+        $newExtra = $record->extra;
+        $newExtra['exception_chain_with_context'] = $this->getExceptionChainWithContext($exception);
+
+        // If the exception itself is carrying context, we'll append it to the
+        // record's existing context - but without overwriting anything already
+        // there, so as to enable users to still pass custom data if needed.
+        $newContext = $this->mergeContextWithExceptionContext($record->context, $exception);
+
+        // Return a new LogRecord with updated context and extra
+        return $record->with(
+            context: $newContext,
+            extra: $newExtra,
+        );
+    }
+
+    /**
+     * Process Monolog 2 array format.
+     *
+     * @param array $record
      * @return array
      */
-    public function __invoke(array $record): array
+    private function processArray(array $record): array
     {
         // If the log record doesn't have a context, or the context doesn't have
         // an exception attached, or the exception key is not actually an
